@@ -63,3 +63,6 @@ SELECT * FROM measurement_counts;
 
 # Execute query
 measurement_data_first_hour <- dbGetQuery(con, query)
+
+# Check result
+head(measurement_data)
