@@ -1,0 +1,10 @@
+library(ggplot2)
+
+ggplot(measurement_data_first_hour, aes(x = n_measurements_first_hour)) +
+  geom_histogram(binwidth = 1, fill = "darkorange", color = "black") +
+  labs(
+    title = "Number of Measurements in First ICU Hour (First ICU Encounter Only)",
+    x = "Measurements (Concept ID 40762499)",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
