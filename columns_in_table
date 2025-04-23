@@ -1,0 +1,14 @@
+#find columns in table
+# Query for columns in the "visit_detail" table within the "omopcdm" schema
+query_columns <- "
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_schema = 'omopcdm'  -- Correct schema name
+    AND table_name = 'visit_detail'  -- Correct table name
+"
+
+# Run the query to get column names
+columns_visit_detail <- querySql(conn, query_columns)
+
+# View the result
+print(columns_visit_detail)
