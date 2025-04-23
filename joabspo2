@@ -63,7 +63,7 @@ print(columns)
 
 # Query to get oxygen saturation (SpO2) data from the "measurement" table in the "omopcdm" schema
 query_oxygen_saturation <- "
-  SELECT person_id, measurement_date, value_as_number
+  SELECT person_id, measurement_date, value_as_number, measurement_concept_id
   FROM omopcdm.measurement
   WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
 "
