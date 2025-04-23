@@ -1,0 +1,2 @@
+Error in ggplot(measurement_data_first_hour, aes(x = n_measurements_first_hour)) : 
+  could not find function "ggplot"
