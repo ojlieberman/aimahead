@@ -38,6 +38,13 @@ FROM grouped_visits
 ORDER BY person_id, group_id, start_time;
 "
 
+# Execute SQL query and store in R
+icu_chains_raw <- dbGetQuery(con, query)
+
+# Check that it exists and is not empty
+print(dim(icu_chains_raw))
+head(icu_chains_raw)
+
 # Step 2: In R — Find first chain ≥ 1 hour per patient
 library(dplyr)
 library(lubridate)
