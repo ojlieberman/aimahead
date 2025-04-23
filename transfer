@@ -3,3 +3,17 @@ Error in ggplot(measurement_data_first_hour, aes(x = n_measurements_first_hour))
 
 Error: package or namespace load failed for ‘ggplot2’ in loadNamespace(i, c(lib.loc, .libPaths()), versionCheck = vI[[i]]):
  namespace ‘rlang’ 1.0.5 is already loaded, but >= 1.1.0 is required
+
+install.packages("ggplot2")   # Run this only once
+library(ggplot2)              # Run every session
+
+ggplot(data.frame(x = 1:10, y = 1:10), aes(x, y)) + geom_point()
+
+ggplot(measurement_data_first_hour, aes(x = n_measurements_first_hour)) +
+  geom_histogram(binwidth = 1, fill = "darkorange", color = "black") +
+  labs(
+    title = "Number of Measurements in First ICU Hour (First ICU Encounter Only)",
+    x = "Measurements (Concept ID 40762499)",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
