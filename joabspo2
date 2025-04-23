@@ -1,0 +1,1040 @@
+library(DatabaseConnector)
+
+user <- "aimahead"
+password <- "a1mah3ad!"
+host <- "psql-aimahead-e2.postgres.database.azure.com"
+database <- "aimahead"
+
+# https://github.com/OHDSI/DatabaseConnector
+connectionDetails <- createConnectionDetails(dbms="postgresql", 
+                                             server=paste0(host, '/', database),
+                                             user=user,
+                                             password=password)
+
+
+conn <- connect(connectionDetails)
+querySql(conn,"SELECT COUNT(*) FROM omopcdm.person")
+
+install.packages("RPostgres")
+library(RPostgres)
+
+# Connect to the database using the connection details
+conn <- connect(connectionDetails)
+
+# Query for the available schemas in the database
+query_schemas <- "
+  SELECT schema_name
+  FROM information_schema.schemata
+"
+
+# Run the query to get the schemas
+schemas <- querySql(conn, query_schemas)
+
+# View the result
+print(schemas)
+
+
+# Query for the list of tables in the omopcdm schema
+query_tables <- "
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'omopcdm'  -- Replace with the correct schema if it's different
+"
+
+# Run the query and get the list of tables
+tables <- querySql(conn, query_tables)
+
+# View the result
+head(tables)
+
+# Query for columns in the "measurement" table within the "omopcdm" schema
+query_columns <- "
+  SELECT column_name
+  FROM information_schema.columns
+  WHERE table_schema = 'omopcdm'  -- Correct schema name
+    AND table_name = 'measurement'  -- Correct table name
+"
+
+# Run the query to get column names
+columns <- querySql(conn, query_columns)
+
+# View the result
+print(columns)
+
+# Query to get oxygen saturation (SpO2) data from the "measurement" table in the "omopcdm" schema
+query_oxygen_saturation <- "
+  SELECT person_id, measurement_date, value_as_number
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+"
+
+# Execute the query
+oxygen_data <- querySql(conn, query_oxygen_saturation)
+
+# View the first few rows of the result
+head(oxygen_data)
+
+# Query with unit concept and value
+query_oxygen_saturation_full <- "
+  SELECT person_id, measurement_date, value_as_number, unit_concept_id
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+"
+
+# Execute the query
+oxygen_data_full <- querySql(conn, query_oxygen_saturation_full)
+
+# View the first few rows
+head(oxygen_data_full)
+
+# Query to count the number of unique patients with SpO2 measurements
+query_patient_count <- "
+  SELECT COUNT(DISTINCT person_id) AS num_patients
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+"
+
+# Execute the query
+patient_count <- querySql(conn, query_patient_count)
+
+# View the result
+patient_count
+
+# Query to count SpO2 measurements within 24-hour periods
+query_spo2_24hr_count <- "
+  SELECT COUNT(*) AS measurements_in_24hr
+  FROM (
+    SELECT DISTINCT person_id, 
+           DATE_TRUNC('day', measurement_datetime) AS measurement_day,  -- Grouping by date (24 hours)
+           measurement_datetime
+    FROM omopcdm.measurement
+    WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+  ) AS subquery
+  GROUP BY measurement_day
+"
+
+# Execute the query
+spo2_24hr_count <- querySql(conn, query_spo2_24hr_count)
+
+# View the result
+spo2_24hr_count
+
+# Query to count SpO2 measurements by each patient within a 24-hour period
+query_spo2_measurements_per_24hr <- "
+  SELECT person_id, 
+         DATE_TRUNC('day', measurement_datetime) AS measurement_day, 
+         COUNT(*) AS measurements_in_24hr
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+  GROUP BY person_id, measurement_day
+  ORDER BY person_id, measurement_day
+"
+
+# Execute the query
+spo2_measurements_per_24hr <- querySql(conn, query_spo2_measurements_per_24hr)
+
+# View the result
+head(spo2_measurements_per_24hr)
+
+
+# Query to count SpO2 measurements in 24-hour periods
+query_spo2_measurements_per_24hr <- "
+  SELECT person_id, 
+         DATE_TRUNC('day', measurement_datetime) AS measurement_day, 
+         COUNT(*) AS measurements_in_24hr
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+  GROUP BY person_id, measurement_day
+  ORDER BY person_id, measurement_day
+"
+
+# Execute the query
+spo2_measurements_per_24hr <- querySql(conn, query_spo2_measurements_per_24hr)
+
+
+
+
+
+
+
+
+
+
+
+# Query to count SpO2 measurements in 24-hour periods
+query_spo2_24hr_count <- "
+  SELECT person_id, 
+         DATE_TRUNC('day', measurement_datetime) AS measurement_day,  -- Grouping by date (24 hours)
+         COUNT(*) AS measurements_in_24hr
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+  GROUP BY person_id, measurement_day
+  ORDER BY person_id, measurement_day
+"
+
+# Execute the query
+spo2_24hr_count <- querySql(conn, query_spo2_24hr_count)
+
+# Check the first few rows of the result to confirm
+head(spo2_24hr_count)
+
+# Execute the query and store the result
+spo2_24hr_count <- querySql(conn, query_spo2_24hr_count)
+
+# Check the structure of the result
+str(spo2_24hr_count)
+
+# View the first few rows of the result to ensure the data is returned correctly
+head(spo2_24hr_count)
+
+# Create the bins based on the measurements
+spo2_24hr_count$measurements_bin <- cut(
+  spo2_24hr_count$MEASUREMENTS_IN_24HR,
+  breaks = c(0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, Inf),
+  labels = c("1-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", 
+             "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70+"),
+  right = FALSE  # Right interval boundary exclusive
+)
+
+# Check the first few rows to ensure the bins are created correctly
+head(spo2_24hr_count)
+
+# Load ggplot2 for plotting
+library(ggplot2)
+
+
+# Plot the histogram
+ggplot(spo2_24hr_count, aes(x = measurements_bin)) +
+  geom_bar(fill = "steelblue", width=1.0, color = "black") +
+  labs(title = "Distribution of SpO2 Measurements in 24-Hour Periods",
+       x = "Number of SpO2 Measurements in 24 hours",
+       y = "Count of 24-hour periods") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+
+
+
+
+# Filter the data to exclude the "1-5" bin
+spo2_24hr_count_filtered <- spo2_24hr_count[spo2_24hr_count$measurements_bin != "1-5", ]
+
+# Check the first few rows of the filtered data
+head(spo2_24hr_count_filtered)
+
+# Filter the data to exclude the "1-5" bin
+spo2_24hr_count_filtered <- spo2_24hr_count[spo2_24hr_count$measurements_bin != "1-5", ]
+
+# Check the first few rows of the filtered data
+head(spo2_24hr_count_filtered)
+
+# Plot the histogram without the "1-5" bin
+ggplot(spo2_24hr_count_filtered, aes(x = measurements_bin)) +
+  geom_bar(fill = "steelblue", width = 1.0, color = "black") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(title = "Distribution of SpO2 Measurements in 24-Hour Periods (Excluding 1-5 Bin)",
+       x = "Number of SpO2 Measurements in 24 hours",
+       y = "Count of 24-hour periods") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+
+
+# Number of Patients vs SpO2 measurements 
+
+
+
+# Create the bins based on the measurements (excluding "1-5" bin)
+spo2_24hr_count_filtered$measurements_bin <- cut(
+  spo2_24hr_count_filtered$MEASUREMENTS_IN_24HR,
+  breaks = c(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, Inf),
+  labels = c("5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", 
+             "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70+"),
+  right = FALSE  # Right interval boundary exclusive
+)
+
+# Count the number of distinct patients in each bin
+patient_counts <- aggregate(PERSON_ID ~ measurements_bin, data = spo2_24hr_count_filtered, FUN = function(x) length(unique(x)))
+
+# Check the patient counts
+head(patient_counts)
+
+
+# Load ggplot2 for plotting
+library(ggplot2)
+
+# Plot the histogram with the number of patients on the y-axis
+ggplot(patient_counts, aes(x = measurements_bin, y = PERSON_ID)) +
+  geom_bar(stat = "identity", fill = "steelblue", width=1.0, color = "black") +  # Use stat="identity" to plot counts directly
+  labs(title = "Number of Patients vs Number of SpO2 Measurements in 24 Hours",
+       x = "Number of SpO2 Measurements in 24 hours",
+       y = "Number of Patients") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+
+# Include 1-5
+# Create the bins based on the measurements (including the "1-5" bin correctly)
+spo2_24hr_count_filtered$measurements_bin <- cut(
+  spo2_24hr_count_filtered$MEASUREMENTS_IN_24HR,
+  breaks = c(1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, Inf),
+  labels = c("1-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30-35", "35-40", 
+             "40-45", "45-50", "50-55", "55-60", "60-65", "65-70", "70+"),
+  right = TRUE  # Right interval boundary is now inclusive
+)
+
+# Count the number of distinct patients in each bin
+patient_counts <- aggregate(PERSON_ID ~ measurements_bin, data = spo2_24hr_count_filtered, FUN = function(x) length(unique(x)))
+
+# Check the patient counts to make sure "1-5" is included
+head(patient_counts)
+
+
+
+# Load ggplot2 for plotting
+library(ggplot2)
+
+# Plot the histogram with the number of patients on the y-axis
+ggplot(patient_counts, aes(x = measurements_bin, y = PERSON_ID)) +
+  geom_bar(stat = "identity", fill = "steelblue", width=1.0, color = "black") +  # Use stat="identity" to plot counts directly
+  labs(title = "Number of Patients vs Number of SpO2 Measurements in 24 Hours",
+       x = "Number of SpO2 Measurements in 24 hours",
+       y = "Number of Patients") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+
+# Query to get the count of SpO2 measurements for each patient within 24-hour periods
+
+# Execute the query to get the list of patients with 5-10 SpO2 measurements per 24-hour period
+query_spo2_5_10 <- "
+WITH spo2_measurements AS (
+  SELECT 
+    person_id,
+    DATE_TRUNC('day', measurement_datetime) AS measurement_day,
+    measurement_concept_id,
+    value_as_number
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+    AND value_as_number < 90  -- Only consider measurements below 90%
+)
+SELECT 
+  person_id,
+  measurement_day,
+  COUNT(*) AS measurements_in_24hr
+FROM spo2_measurements
+GROUP BY person_id, measurement_day
+HAVING COUNT(*) BETWEEN 5 AND 10;
+"
+
+# Execute the query to get the results
+spo2_5_10 <- querySql(conn, query_spo2_5_10)
+
+# Execute another query to get the SpO2 measurements (value < 90%)
+query_spo2_below_90 <- "
+SELECT person_id, measurement_datetime, value_as_number
+FROM omopcdm.measurement
+WHERE measurement_concept_id = 3036277  -- Concept ID for SpO2
+  AND value_as_number < 90;  -- Only SpO2 measurements below 90%
+"
+
+# Execute the query to get SpO2 measurements below 90%
+spo2_below_90 <- querySql(conn, query_spo2_below_90)
+
+# Join the two datasets to find patients who meet both conditions
+patients_with_spo2_5_10 <- merge(spo2_5_10, spo2_below_90, by = "person_id")
+
+# View the patients who meet both conditions
+head(patients_with_spo2_5_10)
+
+
+# Inspect column names of both data frames
+colnames(spo2_5_10)
+colnames(spo2_below_90)
+
+# Remove duplicate measurements by person_id and measurement_day
+spo2_5_10_unique <- spo2_5_10[!duplicated(spo2_5_10[c("PERSON_ID", "MEASUREMENT_DAY")]), ]
+spo2_below_90_unique <- spo2_below_90[!duplicated(spo2_below_90[c("PERSON_ID", "MEASUREMENT_DATETIME")]), ]
+
+# Now merge the two data frames based on PERSON_ID
+patients_with_spo2_5_10 <- merge(spo2_5_10_unique, spo2_below_90_unique, by = "PERSON_ID")
+
+# View the result
+head(patients_with_spo2_5_10)
+
+# Filter for SpO2 measurements below 90% for patients who had 5-10 measurements in 24 hr
+patients_with_spo2_5_10_below_90 <- patients_with_spo2_5_10[patients_with_spo2_5_10$VALUE_AS_NUMBER < 90, ]
+
+# View the filtered data
+head(patients_with_spo2_5_10_below_90)
+
+# Assuming 'patients_with_spo2_5_10_below_90' is your dataset containing the 5-10 SpO2 measurements with readings below 90%
+
+# Filter for patients who had 5-10 SpO2 measurements in 24 hours
+# Assuming 'MEASUREMENTS_IN_24HR' represents the number of measurements in the last 24 hours
+spo2_5_10_filtered <- patients_with_spo2_5_10_below_90[patients_with_spo2_5_10_below_90$MEASUREMENTS_IN_24HR >= 5 & patients_with_spo2_5_10_below_90$MEASUREMENTS_IN_24HR <= 10, ]
+
+# Check the survival status for this filtered cohort
+# Ensure survival status is being applied correctly for this cohort
+spo2_5_10_filtered$survival_status <- as.factor(spo2_5_10_filtered$survival_status)
+
+# Count the number of survived (1) vs died (0)
+survival_counts_filtered <- table(spo2_5_10_filtered$survival_status)
+
+# Display the results
+cat("Survival Counts for 5-10 SpO2 patients with readings below 90%: \n")
+print(survival_counts_filtered)
+
+
+
+
+
+# Query to check the columns in the 'person' table
+column_query <- "
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'omopcdm' AND table_name = 'person';
+"
+
+# Execute the query and get the results
+columns_person <- querySql(conn, column_query)
+
+# View the column names to find the correct death-related column
+print(columns_person)
+
+
+# Define the query (adjust column names based on the previous check)
+query_survival <- "
+WITH spo2_data AS (
+  SELECT 
+    m.person_id,
+    COUNT(*) AS measurements_in_24hr,  -- Count of SpO2 measurements in 24-hour period
+    DATE_TRUNC('day', m.measurement_datetime) AS measurement_day,  -- Truncate measurement date to day
+    p.death_date,  -- Assuming death_date is the correct column in the 'person' table
+    MAX(m.measurement_datetime) AS last_measurement_datetime  -- Find the latest SpO2 measurement for the 24-hour period
+  FROM 
+    omopcdm.measurement m
+    LEFT JOIN omopcdm.person p ON m.person_id = p.person_id  -- Join with person table to get death date
+  WHERE 
+    m.measurement_concept_id = 3036277  -- Concept ID for SpO2 measurements
+    AND m.value_as_number < 90  -- Filter for SpO2 measurements below 90%
+  GROUP BY 
+    m.person_id, measurement_day, p.death_date
+)
+SELECT 
+  person_id,
+  measurements_in_24hr,
+  death_date,  -- Using the correct column for death date
+  CASE 
+    WHEN death_date IS NULL THEN 'Survived'  -- If no death date, the patient survived
+    WHEN death_date > last_measurement_datetime THEN 'Survived'  -- If death is after the last SpO2 measurement
+    ELSE 'Died'  -- If death is before or on the last SpO2 measurement, the patient died
+  END AS survival_status
+FROM 
+  spo2_data
+WHERE 
+  measurements_in_24hr >= 5 AND measurements_in_24hr <= 10  -- Only patients with 5-10 measurements in 24 hours
+"
+
+# Execute the query using querySql
+spo2_data <- querySql(conn, query_survival)
+
+# View the structure of the result
+str(spo2_data)
+
+
+
+# Define the query to count the number of distinct patients (person_id) with SpO2 measurements
+query_spo2_patients <- "
+SELECT COUNT(DISTINCT person_id) AS num_patients
+FROM omopcdm.measurement
+WHERE measurement_concept_id = 3036277;  -- Concept ID for SpO2 measurements
+"
+
+# Execute the query using querySql
+num_patients_spo2 <- querySql(conn, query_spo2_patients)
+
+# View the result
+print(num_patients_spo2)
+
+
+# Query to check the columns in the 'person' table
+column_query <- "
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'omopcdm' AND table_name = 'person';
+"
+
+# Execute the query and get the results
+columns_person <- querySql(conn, column_query)
+
+# View the column names to find the correct death-related column
+print(columns_person)
+
+
+
+# Query to check the columns in the 'death' table
+column_query_death <- "
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'omopcdm' AND table_name = 'death';
+"
+
+# Execute the query and get the results
+columns_death <- querySql(conn, column_query_death)
+
+# View the column names to find the correct death-related column
+print(columns_death)
+
+query_survival <- "
+WITH spo2_data AS (
+  SELECT 
+    m.person_id,
+    COUNT(*) AS measurements_in_24hr,  -- Count of SpO2 measurements in 24-hour period
+    DATE_TRUNC('day', m.measurement_datetime) AS measurement_day,  -- Truncate measurement date to day
+    d.death_datetime,  -- Death datetime from the 'death' table
+    MAX(m.measurement_datetime) AS last_measurement_datetime  -- Find the latest SpO2 measurement for the 24-hour period
+  FROM 
+    omopcdm.measurement m
+    LEFT JOIN omopcdm.death d ON m.person_id = d.person_id  -- Join with the death table to get death information
+  WHERE 
+    m.measurement_concept_id = 3036277  -- Concept ID for SpO2 measurements
+    AND m.value_as_number < 90  -- Filter for SpO2 measurements below 90%
+  GROUP BY 
+    m.person_id, measurement_day, d.death_datetime  -- Group by person_id, measurement_day, and death_datetime
+)
+SELECT 
+  person_id,
+  measurements_in_24hr,
+  death_datetime,  -- Include death_datetime to check survival status
+  CASE 
+    WHEN death_datetime IS NULL THEN 'Survived'  -- If no death datetime, the patient survived
+    WHEN death_datetime > last_measurement_datetime THEN 'Survived'  -- Death occurred after the last measurement
+    ELSE 'Died'  -- If death occurred before or during the last measurement, the patient died
+  END AS survival_status
+FROM 
+  spo2_data
+WHERE 
+  measurements_in_24hr >= 5 AND measurements_in_24hr <= 10  -- Filter for patients with 5-10 SpO2 measurements in 24 hours
+"
+# Execute the query using querySql
+spo2_data <- querySql(conn, query_survival)
+
+# View the structure of the result
+str(spo2_data)
+
+# Optionally view the first few rows of the result
+head(spo2_data)
+
+# Count the number of survived and died patients
+survival_counts <- table(spo2_data$SURVIVAL_STATUS)
+
+# Print the counts to verify
+print(survival_counts)
+
+
+# Filter the data to include only patients with 5-10 SpO2 measurements and SpO2 below 90%
+filtered_data <- spo2_data[spo2_data$MEASUREMENTS_IN_24HR >= 5 & spo2_data$MEASUREMENTS_IN_24HR <= 10, ]
+
+# Check how many rows are in the filtered data (patients with 5-10 measurements)
+nrow(filtered_data)
+
+# Count the number of survived and died patients in the filtered data
+filtered_survival_counts <- table(filtered_data$SURVIVAL_STATUS)
+
+# Print the counts to verify
+print(filtered_survival_counts)
+
+
+# Create a data frame from the filtered survival counts for plotting
+filtered_survival_df <- data.frame(
+  survival_status = names(filtered_survival_counts),
+  count = as.vector(filtered_survival_counts)
+)
+
+# Plot the bar chart for the filtered data
+ggplot(filtered_survival_df, aes(x = survival_status, y = count, fill = survival_status)) +
+  geom_bar(stat = "identity", width=1.0, show.legend = FALSE) +
+  labs(
+    title = "Survival Status of Patients with 5-10 SpO2 Measurements and SpO2 < 90%",
+    x = "Survival Status",
+    y = "Number of Patients"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("Survived" = "green", "Died" = "red"))
+
+
+# Count the number of patients for each number of SpO2 measurements in 24 hours (5 to 10 measurements)
+measurement_counts <- table(filtered_data$MEASUREMENTS_IN_24HR)
+
+# Print the counts to verify
+print(measurement_counts)
+
+# Create a data frame for plotting
+measurement_df <- data.frame(
+  measurements_in_24hr = as.integer(names(measurement_counts)),  # Convert names to integers (5, 6, 7, etc.)
+  count = as.vector(measurement_counts)
+)
+
+# Plot the histogram
+ggplot(measurement_df, aes(x = measurements_in_24hr, y = count, fill = factor(measurements_in_24hr))) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(
+    title = "Number of Patients with SpO2 Measurements in 24 Hours (5-10 Measurements)",
+    x = "Number of SpO2 Measurements in 24 Hours",
+    y = "Number of Patients"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("5" = "blue", "6" = "green", "7" = "orange", "8" = "purple", "9" = "red", "10" = "pink"))
+
+
+# Larger bins 
+# Create custom bins using the 'cut' function
+measurement_bins <- cut(filtered_data$MEASUREMENTS_IN_24HR,
+                        breaks = c(0, 5, 10, 15, 20, 25, Inf),  # Define bins: 1-5, 5-10, 10-15, 15-20, 20-25, 25+
+                        labels = c("1-5", "5-10", "10-15", "15-20", "20-25", "25+"),
+                        right = FALSE)  # Include the lower boundary, exclude the upper boundary
+
+# Add the bins as a new column to the dataframe
+filtered_data$measurement_bins <- measurement_bins
+
+# Count the number of patients in each bin
+bin_counts <- table(filtered_data$measurement_bins)
+
+# Create a data frame for plotting
+bin_df <- data.frame(
+  measurement_bin = names(bin_counts),
+  count = as.vector(bin_counts)
+)
+
+# Plot the histogram with larger bins
+ggplot(bin_df, aes(x = measurement_bin, y = count, fill = measurement_bin)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(
+    title = "Number of Patients with SpO2 Measurements in 24 Hours (Larger Bins)",
+    x = "Number of SpO2 Measurements in 24 Hours",
+    y = "Number of Patients"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("1-5" = "blue", "5-10" = "green", "10-15" = "orange", 
+                               "15-20" = "purple", "20-25" = "red", "25+" = "pink"))
+
+
+
+# Filter the data for patients who had 5-10 SpO2 measurements in 24 hours
+spo2_5_10 <- filtered_data[filtered_data$MEASUREMENTS_IN_24HR >= 5 & filtered_data$MEASUREMENTS_IN_24HR <= 10, ]
+
+# Get the count of patients in this category
+count_5_10 <- nrow(spo2_5_10)
+
+# Print the count
+print(count_5_10)
+
+
+# Filter the data for patients with 5-10 SpO2 measurements in 24 hours
+spo2_5_10 <- filtered_data[filtered_data$MEASUREMENTS_IN_24HR >= 5 & filtered_data$MEASUREMENTS_IN_24HR <= 10, ]
+
+# Get the count of patients with 5-10 SpO2 measurements
+count_5_10 <- nrow(spo2_5_10)
+
+# Filter the data for patients with 10-15 SpO2 measurements in 24 hours
+spo2_10_15 <- filtered_data[filtered_data$MEASUREMENTS_IN_24HR >= 10 & filtered_data$MEASUREMENTS_IN_24HR <= 15, ]
+
+# Get the count of patients with 10-15 SpO2 measurements
+count_10_15 <- nrow(spo2_10_15)
+
+# Print the counts
+cat("Count of patients with 5-10 SpO2 measurements: ", count_5_10, "\n")
+cat("Count of patients with 10-15 SpO2 measurements: ", count_10_15, "\n")
+
+query_top_interventions <- "
+SELECT 
+  po.procedure_concept_id,
+  c.concept_name,
+  COUNT(DISTINCT po.person_id) AS patient_count
+FROM omopcdm.procedure_occurrence po
+JOIN (
+  SELECT DISTINCT person_id
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277 AND value_as_number < 90
+) low_spo2 ON po.person_id = low_spo2.person_id
+LEFT JOIN omopcdm.concept c ON po.procedure_concept_id = c.concept_id
+GROUP BY po.procedure_concept_id, c.concept_name
+ORDER BY patient_count DESC
+LIMIT 20;
+"
+
+# Run the query
+top_interventions <- querySql(conn, query_top_interventions)
+
+# View result
+head(top_interventions)
+
+
+# Update for 5-10 measurements
+query_top_interventions_5_10 <- "WITH spo2_measurements AS (
+  SELECT
+    person_id,
+    DATE_TRUNC('day', measurement_datetime) AS measurement_day,
+    COUNT(*) AS measurements_in_24hr
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277 AND value_as_number < 90
+  GROUP BY person_id, DATE_TRUNC('day', measurement_datetime)
+),
+eligible_patients AS (
+  SELECT DISTINCT person_id
+  FROM spo2_measurements
+  WHERE measurements_in_24hr BETWEEN 5 AND 10
+),
+intervention_counts AS (
+  SELECT 
+    po.procedure_concept_id,
+    c.concept_name,
+    COUNT(DISTINCT po.person_id) AS patient_count
+  FROM omopcdm.procedure_occurrence po
+  JOIN eligible_patients ep ON po.person_id = ep.person_id
+  LEFT JOIN omopcdm.concept c ON po.procedure_concept_id = c.concept_id
+  GROUP BY po.procedure_concept_id, c.concept_name
+)
+SELECT *
+FROM intervention_counts
+ORDER BY patient_count DESC
+LIMIT 20;
+"
+
+# Run query in R
+top_interventions_5_10 <- querySql(conn, query_top_interventions_5_10)
+head(top_interventions_5_10)
+
+
+query_intervention_plot <- "
+WITH spo2_events AS (
+  SELECT 
+    person_id,
+    MIN(measurement_datetime) AS first_low_spo2_time
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277 AND value_as_number < 90
+  GROUP BY person_id
+),
+interventions AS (
+  SELECT 
+    po.person_id,
+    po.procedure_datetime,
+    po.procedure_concept_id,
+    c.concept_name AS procedure_name
+  FROM omopcdm.procedure_occurrence po
+  LEFT JOIN omopcdm.concept c ON po.procedure_concept_id = c.concept_id
+),
+death_info AS (
+  SELECT person_id, death_datetime
+  FROM omopcdm.death
+)
+SELECT 
+  s.person_id,
+  i.procedure_name,
+  EXTRACT(EPOCH FROM (i.procedure_datetime - s.first_low_spo2_time)) / 3600 AS time_to_intervention_hours,
+  CASE 
+    WHEN d.death_datetime IS NULL THEN 'Survived'
+    WHEN d.death_datetime > i.procedure_datetime THEN 'Survived'
+    ELSE 'Died'
+  END AS survival_status
+FROM spo2_events s
+JOIN interventions i ON s.person_id = i.person_id
+LEFT JOIN death_info d ON s.person_id = d.person_id
+WHERE i.procedure_datetime >= s.first_low_spo2_time
+"
+
+# Run the query using DatabaseConnector
+intervention_data <- querySql(conn, query_intervention_plot)
+
+
+
+# Convert time to numeric if needed
+intervention_data$TIME_TO_INTERVENTION_HOURS <- as.numeric(intervention_data$TIME_TO_INTERVENTION_HOURS)
+
+# Plot: Intervention vs Time to Intervention, colored by survival
+ggplot(intervention_data, aes(x = PROCEDURE_NAME, y = TIME_TO_INTERVENTION_HOURS, color = SURVIVAL_STATUS)) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  labs(
+    title = "Time to Intervention After SpO2 < 90%",
+    x = "Intervention",
+    y = "Time to Intervention (hours)",
+    color = "Survival Status"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+query_top5_intervention_plot <- "
+WITH spo2_events AS (
+  SELECT 
+    person_id,
+    MIN(measurement_datetime) AS first_low_spo2_time
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277 AND value_as_number < 90
+  GROUP BY person_id
+),
+interventions AS (
+  SELECT 
+    po.person_id,
+    po.procedure_datetime,
+    po.procedure_concept_id,
+    c.concept_name AS procedure_name
+  FROM omopcdm.procedure_occurrence po
+  LEFT JOIN omopcdm.concept c ON po.procedure_concept_id = c.concept_id
+),
+death_info AS (
+  SELECT person_id, death_datetime
+  FROM omopcdm.death
+),
+joined AS (
+  SELECT 
+    s.person_id,
+    i.procedure_name,
+    EXTRACT(EPOCH FROM (i.procedure_datetime - s.first_low_spo2_time)) / 3600 AS time_to_intervention_hours,
+    CASE 
+      WHEN d.death_datetime IS NULL THEN 'Survived'
+      WHEN d.death_datetime > i.procedure_datetime THEN 'Survived'
+      ELSE 'Died'
+    END AS survival_status
+  FROM spo2_events s
+  JOIN interventions i ON s.person_id = i.person_id
+  LEFT JOIN death_info d ON s.person_id = d.person_id
+  WHERE i.procedure_datetime >= s.first_low_spo2_time
+),
+top5_procedures AS (
+  SELECT procedure_name
+  FROM joined
+  GROUP BY procedure_name
+  ORDER BY COUNT(DISTINCT person_id) DESC
+  LIMIT 5
+)
+SELECT * 
+FROM joined
+WHERE procedure_name IN (SELECT procedure_name FROM top5_procedures)
+"
+
+
+# Run the SQL query
+top5_intervention_data <- querySql(conn, query_top5_intervention_plot)
+
+
+library(ggplot2)
+
+# Ensure time is numeric
+top5_intervention_data$TIME_TO_INTERVENTION_HOURS <- as.numeric(top5_intervention_data$TIME_TO_INTERVENTION_HOURS)
+
+# Plot
+ggplot(top5_intervention_data, aes(x = PROCEDURE_NAME, y = TIME_TO_INTERVENTION_HOURS, color = SURVIVAL_STATUS)) +
+  geom_jitter(width = 0.2, alpha = 0.6) +
+  labs(
+    title = "Top 5 Interventions: Time to Intervention vs. Survival",
+    x = "Procedure",
+    y = "Time to Intervention (Hours)",
+    color = "Survival Status"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(top5_intervention_data, aes(x = PROCEDURE_NAME, y = TIME_TO_INTERVENTION_HOURS, color = SURVIVAL_STATUS)) +
+  geom_jitter(height = 0.2, alpha = 0.6) +
+  coord_flip() +  # Flip axes
+  labs(
+    title = "Top 5 Interventions: Time to Intervention vs. Survival",
+    x = "Procedure",
+    y = "Time to Intervention (Hours)",
+    color = "Survival Status"
+  ) +
+  theme_minimal()
+
+query_oxygen_interventions <- "
+WITH spo2_events AS (
+  SELECT 
+    person_id,
+    MIN(measurement_datetime) AS first_low_spo2_time
+  FROM omopcdm.measurement
+  WHERE measurement_concept_id = 3036277 AND value_as_number < 90
+  GROUP BY person_id
+),
+interventions AS (
+  SELECT 
+    po.person_id,
+    po.procedure_datetime,
+    po.procedure_concept_id,
+    c.concept_name AS procedure_name
+  FROM omopcdm.procedure_occurrence po
+  LEFT JOIN omopcdm.concept c ON po.procedure_concept_id = c.concept_id
+  WHERE LOWER(c.concept_name) LIKE ANY (
+    ARRAY[
+      '%oxygen%',
+      '%ventilation%',
+      '%intubation%',
+      '%respirator%',
+      '%CPAP%',
+      '%BiPAP%',
+      '%HFNC%',
+      '%mechanical ventilation%'
+    ]
+  )
+),
+death_info AS (
+  SELECT person_id, death_datetime
+  FROM omopcdm.death
+),
+joined AS (
+  SELECT 
+    s.person_id,
+    i.procedure_name,
+    EXTRACT(EPOCH FROM (i.procedure_datetime - s.first_low_spo2_time)) / 60 AS time_to_intervention_minutes,
+    CASE 
+      WHEN d.death_datetime IS NULL THEN 'Survived'
+      WHEN d.death_datetime > i.procedure_datetime THEN 'Survived'
+      ELSE 'Died'
+    END AS survival_status
+  FROM spo2_events s
+  JOIN interventions i ON s.person_id = i.person_id
+  LEFT JOIN death_info d ON s.person_id = d.person_id
+  WHERE i.procedure_datetime >= s.first_low_spo2_time
+)
+SELECT * 
+FROM joined
+WHERE time_to_intervention_minutes <= 1440
+"
+oxygen_interventions <- querySql(conn, query_oxygen_interventions)
+
+ggplot(oxygen_interventions, aes(x = PROCEDURE_NAME, y = TIME_TO_INTERVENTION_MINUTES, color = SURVIVAL_STATUS)) +
+  geom_jitter(height = 0.2, alpha = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Oxygen-Related Interventions (within 24 hrs) vs. Survival",
+    x = "Procedure",
+    y = "Time to Intervention (Minutes)",
+    color = "Survival Status"
+  ) +
+  theme_minimal()
+
+
+# Create short labels
+oxygen_interventions$SHORT_NAME <- dplyr::recode(
+  oxygen_interventions$PROCEDURE_NAME,
+  .default = "Other",
+  "Supplemental oxygen therapy by nasal cannula" = "Oxygen (NC)",
+  "Mechanical ventilation, invasive" = "Mech Vent",
+  "Non-invasive ventilation (BiPAP/CPAP)" = "NIV",
+  "High flow nasal cannula (HFNC)" = "HFNC",
+  "Endotracheal intubation" = "Intubation"
+)
+
+
+ggplot(oxygen_interventions, aes(x = SHORT_NAME, y = TIME_TO_INTERVENTION_MINUTES, color = SURVIVAL_STATUS)) +
+  geom_jitter(height = 0.2, alpha = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Time to Oxygen-Related Intervention (within 24 hrs)",
+    x = "Intervention",
+    y = "Time to Intervention (Minutes)",
+    color = "Survival"
+  ) +
+  theme_minimal()
+
+ggplot(oxygen_interventions, aes(x = SHORT_NAME, y = TIME_TO_INTERVENTION_MINUTES, color = SURVIVAL_STATUS)) +
+  geom_jitter(height = 0.2, alpha = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Time to Oxygen-Related Intervention (within 24 hrs)",
+    x = "Intervention",
+    y = "Time to Intervention (Minutes)",
+    color = "Survival"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(oxygen_interventions, aes(x = SHORT_NAME, y = TIME_TO_INTERVENTION_MINUTES, color = SURVIVAL_STATUS)) +
+  geom_jitter(height = 0.2, alpha = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Time to Oxygen-Related Intervention (within 24 hrs)",
+    x = "Intervention",
+    y = "Time to Intervention (Minutes)",
+    color = "Survival"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.title = element_text(size = 12))
+
+#boxplot for each intervention
+ggplot(oxygen_interventions, aes(x = SHORT_NAME, y = TIME_TO_INTERVENTION_MINUTES, color = SURVIVAL_STATUS)) +
+  geom_boxplot(alpha = 0.6) +
+  coord_flip() +
+  labs(
+    title = "Time to Oxygen-Related Intervention (within 24 hrs)",
+    x = "Intervention",
+    y = "Time to Intervention (Minutes)",
+    color = "Survival"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10))
+
+# List unique intervention names
+unique_interventions <- unique(oxygen_interventions$PROCEDURE_NAME)
+print(unique_interventions)
+
+# Count the number of occurrences for each intervention
+intervention_counts <- table(oxygen_interventions$PROCEDURE_NAME)
+print(intervention_counts)
+
+# Sort interventions by frequency
+sorted_interventions <- sort(intervention_counts, decreasing = TRUE)
+print(sorted_interventions)
+
+# Create a data frame from the table of counts
+intervention_summary <- data.frame(
+  Intervention = names(intervention_counts),
+  Count = as.vector(intervention_counts)
+)
+
+# Sort by count in descending order
+intervention_summary_sorted <- intervention_summary[order(-intervention_summary$Count),]
+print(intervention_summary_sorted)
+
+# Define the SQL query (adjusted for R, filtering for adults aged 18 and above)
+query_spo2_adults <- "
+WITH spo2_data AS (
+  SELECT 
+    m.person_id,
+    COUNT(*) AS measurements_in_24hr,  -- Count of SpO2 measurements in 24-hour period
+    DATE_TRUNC('day', m.measurement_datetime) AS measurement_day,  -- Truncate measurement date to day
+    p.death_date,  -- Assuming death_date is the correct column in the 'person' table
+    MAX(m.measurement_datetime) AS last_measurement_datetime,  -- Find the latest SpO2 measurement for the 24-hour period
+    p.birth_datetime
+  FROM 
+    omopcdm.measurement m
+    LEFT JOIN omopcdm.person p ON m.person_id = p.person_id  -- Join with person table to get death date
+  WHERE 
+    m.measurement_concept_id = 3036277  -- Concept ID for SpO2 measurements
+    AND m.value_as_number < 90  -- Filter for SpO2 measurements below 90%
+    AND DATE_PART('year', CURRENT_DATE) - DATE_PART('year', p.birth_datetime) >= 18  -- Filter for adults (18 and older)
+  GROUP BY 
+    m.person_id, measurement_day, p.death_date, p.birth_datetime
+)
+SELECT 
+  person_id,
+  measurements_in_24hr,
+  death_date,  -- Using the correct column for death date
+  CASE 
+    WHEN death_date IS NULL THEN 'Survived'  -- If no death date, the patient survived
+    WHEN death_date > last_measurement_datetime THEN 'Survived'  -- If death is after the last SpO2 measurement
+    ELSE 'Died'  -- If death is before or on the last SpO2 measurement, the patient died
+  END AS survival_status
+FROM 
+  spo2_data
+WHERE 
+  measurements_in_24hr >= 5 AND measurements_in_24hr <= 10  -- Only patients with 5-10 measurements in 24 hours
+"
+
+# Execute the query using querySql function
+spo2_data_adults <- querySql(conn, query_spo2_adults)
+
+# View the result
+head(spo2_data_adults)
