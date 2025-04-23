@@ -1,0 +1,85 @@
+#Step 1: Extract Raw ICU Chain Info to R
+query <- "
+WITH icu_visits AS (
+  SELECT 
+    person_id,
+    visit_detail_start_datetime AS start_time,
+    visit_detail_end_datetime AS end_time
+  FROM omopcdm.visit_detail
+  WHERE visit_detail_concept_id IN (
+    32037, 2072499998, 40481392, 4305366, 
+    763903, 2072499999, 4149943, 2072499989, 281379
+  )
+),
+joined_visits AS (
+  SELECT *,
+         LAG(end_time) OVER (PARTITION BY person_id ORDER BY start_time) AS prev_end_time
+  FROM icu_visits
+),
+chained_visits AS (
+  SELECT *,
+         CASE 
+           WHEN prev_end_time = start_time THEN 0 ELSE 1
+         END AS chain_break
+  FROM joined_visits
+),
+grouped_visits AS (
+  SELECT *,
+         SUM(chain_break) OVER (
+           PARTITION BY person_id 
+           ORDER BY start_time 
+           ROWS UNBOUNDED PRECEDING
+         ) AS group_id
+  FROM chained_visits
+)
+
+SELECT person_id, group_id, start_time, end_time
+FROM grouped_visits
+ORDER BY person_id, group_id, start_time;
+"
+# Step 2: In R — Find first chain ≥ 1 hour per patient
+library(dplyr)
+library(lubridate)
+
+# Convert to datetime
+icu_chains_raw <- icu_chains_raw %>%
+  mutate(
+    start_time = as.POSIXct(start_time),
+    end_time = as.POSIXct(end_time),
+    duration_min = as.numeric(difftime(end_time, start_time, units = "mins"))
+  )
+
+# Identify the earliest sequence that reaches ≥ 60 minutes
+icu_one_hour_start <- icu_chains_raw %>%
+  group_by(person_id, group_id) %>%
+  arrange(start_time, .by_group = TRUE) %>%
+  mutate(
+    cum_duration = cumsum(duration_min)
+  ) %>%
+  filter(cum_duration <= 60 | lag(cum_duration, default = 0) < 60) %>%  # up to block that tips over 60
+  summarise(
+    icu_start = min(start_time),
+    .groups = "drop"
+  )
+
+# step 3 Push icu_one_hour_start back to SQL
+# Upload temp table to the database
+dbWriteTable(con, "icu_start_times", icu_one_hour_start, temporary = TRUE, overwrite = TRUE)
+
+#step 4: Join with measurement to count SpO₂ observations in first hour
+query <- "
+SELECT 
+  i.person_id,
+  i.icu_start,
+  COUNT(m.measurement_id) AS n_spo2_measurements_first_hour
+FROM icu_start_times i
+LEFT JOIN omopcdm.measurement m
+  ON i.person_id = m.person_id
+  AND m.measurement_concept_id = 40762499
+  AND m.measurement_datetime BETWEEN i.icu_start AND (i.icu_start + INTERVAL '1 hour')
+GROUP BY i.person_id, i.icu_start;
+"
+
+spo2_counts <- dbGetQuery(con, query)
+
+#Step 5: (Optional) Merge and visualize
