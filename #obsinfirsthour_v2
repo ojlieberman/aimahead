@@ -83,3 +83,20 @@ GROUP BY i.person_id, i.icu_start;
 spo2_counts <- dbGetQuery(con, query)
 
 #Step 5: (Optional) Merge and visualize
+# Merge back to full start list if needed
+icu_spo2_summary <- icu_one_hour_start %>%
+  left_join(spo2_counts, by = c("person_id", "icu_start")) %>%
+  mutate(n_spo2_measurements_first_hour = coalesce(n_spo2_measurements_first_hour, 0))
+
+# Histogram
+library(ggplot2)
+
+ggplot(icu_spo2_summary, aes(x = n_spo2_measurements_first_hour)) +
+  geom_histogram(binwidth = 1, fill = "darkgreen", color = "black") +
+  labs(
+    title = "SpO₂ Measurements in First ICU Hour (After First Contiguous ≥1h Stay)",
+    x = "Number of SpO₂ Measurements",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
+
