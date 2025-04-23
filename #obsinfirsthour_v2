@@ -37,6 +37,7 @@ SELECT person_id, group_id, start_time, end_time
 FROM grouped_visits
 ORDER BY person_id, group_id, start_time;
 "
+
 # Step 2: In R — Find first chain ≥ 1 hour per patient
 library(dplyr)
 library(lubridate)
