@@ -1,0 +1,21 @@
+#identify icu visit details (starttime and endtime for visit_detail_concept_id associated with ICU based on ARES)
+  
+library(DBI)
+
+query <- "
+SELECT 
+    person_id,
+    visit_detail_id,
+    visit_occurrence_id,
+    visit_detail_concept_id,
+    visit_detail_start_datetime,
+    visit_detail_end_datetime
+FROM omopcdm.visit_detail
+WHERE visit_detail_concept_id IN (
+    32037, 2072499998, 40481392, 4305366, 
+    763903, 2072499999, 4149943, 2072499989, 281379
+);
+"
+
+icu_visits <- dbGetQuery(con, query)
+head(icu_visits)
