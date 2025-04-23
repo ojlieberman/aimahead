@@ -1,0 +1,19 @@
+# Basic summary
+summary(measurement_data_first_hour$n_measurements_first_hour)
+
+# Additional stats
+mean_val <- mean(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+median_val <- median(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+sd_val <- sd(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+iqr_val <- IQR(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+min_val <- min(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+max_val <- max(measurement_data_first_hour$n_measurements_first_hour, na.rm = TRUE)
+
+# Display nicely
+cat("Descriptive Stats for Measurements in First ICU Hour:\n")
+cat("Mean:   ", round(mean_val, 2), "\n")
+cat("Median: ", median_val, "\n")
+cat("SD:     ", round(sd_val, 2), "\n")
+cat("IQR:    ", iqr_val, "\n")
+cat("Min:    ", min_val, "\n")
+cat("Max:    ", max_val, "\n")
