@@ -1,2 +1,5 @@
 Error in ggplot(measurement_data_first_hour, aes(x = n_measurements_first_hour)) : 
   could not find function "ggplot"
+
+Error: package or namespace load failed for ‘ggplot2’ in loadNamespace(i, c(lib.loc, .libPaths()), versionCheck = vI[[i]]):
+ namespace ‘rlang’ 1.0.5 is already loaded, but >= 1.1.0 is required
