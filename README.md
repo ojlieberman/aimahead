@@ -1,4 +1,7 @@
 # aimahead
+Dependencies:
+install.packages("ggplot2")
+install.packages("ggplot2")
 
 **#obsper24hr**
 OMOP sometimes splits ICU stays into separate visit_detail_ids even when they’re clearly continuous. To count measurements in the first true 24 hours of ICU stay, we need to:
