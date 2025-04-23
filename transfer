@@ -10,3 +10,26 @@ ggplot(icu_spo2_summary, aes(x = n_spo2_measurements_first_hour)) +
     y = "Number of Patients"
   ) +
   theme_minimal()
+
+# Assuming `icu_one_hour_start` (the data frame with person_id and icu_start times)
+# and `spo2_counts` (the count of SpO₂ measurements) are already available:
+
+# Merge the results from both data frames
+icu_spo2_summary <- icu_one_hour_start %>%
+  left_join(spo2_counts, by = c("person_id", "icu_start")) %>%
+  mutate(n_spo2_measurements_first_hour = coalesce(n_spo2_measurements_first_hour, 0))
+
+# Check the first few rows of merged data
+head(icu_spo2_summary)
+
+# Now plot the histogram
+library(ggplot2)
+
+ggplot(icu_spo2_summary, aes(x = n_spo2_measurements_first_hour)) +
+  geom_histogram(binwidth = 1, fill = "darkgreen", color = "black") +
+  labs(
+    title = "SpO₂ Measurements in First ICU Hour (After First Contiguous ≥1h Stay)",
+    x = "Number of SpO₂ Measurements",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
