@@ -108,3 +108,24 @@ ggplot(icu_spo2_summary, aes(x = n_spo2_measurements_first_hour)) +
   ) +
   theme_minimal()
 
+
+#1. Count: Total, With, and Without Measurements
+icu_spo2_summary %>%
+  summarise(
+    total_patients = n(),
+    with_measurements = sum(n_spo2_measurements_first_hour > 0),
+    without_measurements = sum(n_spo2_measurements_first_hour == 0)
+  )
+
+# 2. Descriptive Statistics for Patients with ≥1 Measurement
+icu_spo2_summary %>%
+  filter(n_spo2_measurements_first_hour > 0) %>%
+  summarise(
+    mean_spo2 = round(mean(n_spo2_measurements_first_hour), 2),
+    median_spo2 = median(n_spo2_measurements_first_hour),
+    sd_spo2 = round(sd(n_spo2_measurements_first_hour), 2),
+    iqr_spo2 = IQR(n_spo2_measurements_first_hour),
+    min_spo2 = min(n_spo2_measurements_first_hour),
+    max_spo2 = max(n_spo2_measurements_first_hour)
+  )
+
