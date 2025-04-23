@@ -1,17 +1,12 @@
 
+#Step 5: (Optional) Merge and visualize
+library(ggplot2)
 
-for this: 
-# Step 2: In R — Find first chain ≥ 1 hour per patient
-library(dplyr)
-library(lubridate)
-
-# Convert to datetime
-icu_chains_raw <- icu_chains_raw %>%
-  mutate(
-    start_time = as.POSIXct(start_time),
-    end_time = as.POSIXct(end_time),
-    duration_min = as.numeric(difftime(end_time, start_time, units = "mins"))
-  )"
-
-I got this error: Error in mutate(., start_time = as.POSIXct(start_time), end_time = as.POSIXct(end_time),  : 
-  object 'icu_chains_raw' not found
+ggplot(icu_spo2_summary, aes(x = n_spo2_measurements_first_hour)) +
+  geom_histogram(binwidth = 1, fill = "darkgreen", color = "black") +
+  labs(
+    title = "SpO₂ Measurements in First ICU Hour (After First Contiguous ≥1h Stay)",
+    x = "Number of SpO₂ Measurements",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
