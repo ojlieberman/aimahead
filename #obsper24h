@@ -1,0 +1,65 @@
+library(DBI)
+
+query <- "
+WITH icu_visits AS (
+  SELECT 
+    person_id,
+    visit_detail_id,
+    visit_detail_start_datetime AS start_time,
+    visit_detail_end_datetime AS end_time
+  FROM omopcdm.visit_detail
+  WHERE visit_detail_concept_id IN (
+    32037, 2072499998, 40481392, 4305366, 
+    763903, 2072499999, 4149943, 2072499989, 281379
+  )
+),
+joined_visits AS (
+  SELECT *,
+         LAG(end_time) OVER (PARTITION BY person_id ORDER BY start_time) AS prev_end_time
+  FROM icu_visits
+),
+chained_visits AS (
+  SELECT *,
+         CASE 
+           WHEN prev_end_time = start_time THEN 0 ELSE 1
+         END AS chain_break
+  FROM joined_visits
+),
+grouped_visits AS (
+  SELECT *,
+         SUM(chain_break) OVER (
+           PARTITION BY person_id 
+           ORDER BY start_time 
+           ROWS UNBOUNDED PRECEDING
+         ) AS group_id
+  FROM chained_visits
+),
+merged_intervals AS (
+  SELECT 
+    person_id,
+    MIN(start_time) AS icu_start,
+    MAX(end_time) AS icu_end
+  FROM grouped_visits
+  GROUP BY person_id, group_id
+  HAVING EXTRACT(EPOCH FROM (MAX(end_time) - MIN(start_time))) / 60 >= 1440
+),
+measurement_counts AS (
+  SELECT 
+    m.person_id,
+    COUNT(*) AS n_measurements
+  FROM omopcdm.measurement m
+  JOIN merged_intervals i 
+    ON m.person_id = i.person_id
+  WHERE m.measurement_concept_id = 40762499
+    AND m.measurement_datetime BETWEEN i.icu_start AND (i.icu_start + INTERVAL '24 hours')
+  GROUP BY m.person_id
+)
+
+SELECT * FROM measurement_counts;
+"
+
+# Execute query
+measurement_data <- dbGetQuery(con, query)
+
+# Check result
+head(measurement_data)
