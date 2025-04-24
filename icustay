@@ -1,0 +1,12 @@
+#goal to find total number of unique patients with an icu stay defined by visit_detail_concept_id below
+query <- "
+SELECT COUNT(DISTINCT person_id) AS n_icu_patients
+FROM omopcdm.visit_detail
+WHERE visit_detail_concept_id IN (
+  32037, 2072499998, 40481392, 4305366, 
+  763903, 2072499999, 4149943, 2072499989, 281379
+);
+"
+
+icu_patient_count <- dbGetQuery(con, query)
+print(icu_patient_count)
