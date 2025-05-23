@@ -1,0 +1,62 @@
+query <- "
+WITH visits AS (
+  SELECT 
+    person_id,
+    visit_occurrence_id,
+    visit_start_datetime,
+    visit_end_datetime,
+    CAST(src_name AS INTEGER) AS src_name,
+    visit_concept_id
+  FROM omopcdm.visit_occurrence
+  WHERE visit_concept_id = 9201
+    AND visit_start_datetime IS NOT NULL
+    AND visit_end_datetime IS NOT NULL
+    AND CAST(src_name AS INTEGER) BETWEEN 1 AND 13
+),
+ordered_visits AS (
+  SELECT *,
+         LAG(visit_end_datetime) OVER (PARTITION BY person_id, src_name ORDER BY visit_start_datetime) AS prev_end
+  FROM visits
+),
+flag_chains AS (
+  SELECT *,
+         CASE 
+           WHEN prev_end IS NULL THEN 1
+           WHEN visit_start_datetime - prev_end <= INTERVAL '1 hour' THEN 0
+           ELSE 1
+         END AS chain_break
+  FROM ordered_visits
+),
+grouped_chains AS (
+  SELECT *,
+         SUM(chain_break) OVER (
+           PARTITION BY person_id, src_name 
+           ORDER BY visit_start_datetime 
+           ROWS UNBOUNDED PRECEDING
+         ) AS chain_id
+  FROM flag_chains
+),
+collapsed_visits AS (
+  SELECT 
+    person_id,
+    src_name,
+    MIN(visit_start_datetime) AS visit_start_datetime,
+    MAX(visit_end_datetime) AS visit_end_datetime,
+    EXTRACT(EPOCH FROM (MAX(visit_end_datetime) - MIN(visit_start_datetime))) / 3600 AS hospital_los_hours
+  FROM grouped_chains
+  GROUP BY person_id, src_name, chain_id
+)
+
+-- Final output: only stays ≥ 24 hours
+SELECT 
+  person_id,
+  src_name,
+  visit_start_datetime,
+  visit_end_datetime,
+  ROUND(hospital_los_hours, 1) AS hospital_los_hours
+FROM collapsed_visits
+WHERE hospital_los_hours >= 24
+ORDER BY person_id, visit_start_datetime;
+"
+
+long_los_patients <- dbGetQuery(conn, query)
