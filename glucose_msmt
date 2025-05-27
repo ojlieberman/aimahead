@@ -1,0 +1,62 @@
+query <- "
+SELECT 
+  m.measurement_id,
+  m.person_id,
+  m.measurement_concept_id,
+  m.measurement_datetime,
+  m.value_as_number,
+  m.unit_concept_id,
+  los.src_name,
+  los.visit_start_datetime,
+  los.visit_end_datetime
+FROM omopcdm.measurement m
+JOIN long_los_temp los ON m.person_id = los.person_id
+WHERE m.measurement_concept_id IN (
+  3004501, 3000483, 3031266, 3034962, 44816672, 3044242, 82947, 
+  4144235, 3014053, 3011424, 3033408, 3004077, 2212359, 3037110, 4149519
+)
+  AND m.measurement_datetime IS NOT NULL
+  AND m.measurement_datetime::time <> '00:00:00'
+  AND m.measurement_datetime BETWEEN los.visit_start_datetime AND los.visit_end_datetime;
+"
+
+measurement_subset <- dbGetQuery(conn, query)
+
+library(dplyr)
+
+measurement_subset <- measurement_subset %>%
+  mutate(
+    visit_start_datetime = as.POSIXct(visit_start_datetime),
+    measurement_datetime = as.POSIXct(measurement_datetime),
+    elapsed_hours = as.numeric(difftime(measurement_datetime, visit_start_datetime, units = "hours"))
+  ) %>%
+  filter(elapsed_hours >= 0, elapsed_hours < 24)
+
+
+library(dplyr)
+
+glucose_counts <- measurement_subset %>%
+  group_by(person_id, src_name) %>%
+  summarise(n_glucose_checks = n(), .groups = "drop")
+
+library(ggplot2)
+
+ggplot(glucose_counts, aes(x = n_glucose_checks)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_wrap(~ src_name, scales = "free_y") +
+  scale_x_continuous(limits = c(0, 25)) +  # adjust if you want tighter/looser view
+  labs(
+    title = "Number of Glucose Checks per Person (First 24h of Admission)",
+    x = "Number of Glucose Measurements",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
+
+library(dplyr)
+
+patients_per_site <- measurement_subset %>%
+  distinct(person_id, src_name) %>%
+  count(src_name, name = "n_patients") %>%
+  arrange(src_name)
+
+print(patients_per_site)
