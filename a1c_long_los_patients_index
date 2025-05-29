@@ -41,3 +41,164 @@ SELECT * FROM summarized_a1c;
 "
 
 a1c_long_los_patients_index <- dbGetQuery(conn, query)
+
+#now analyses based on this table:
+# Step 1: Histogram of A1C
+library(ggplot2)
+
+ggplot(a1c_long_los_patients, aes(x = a1c_median)) +
+  geom_histogram(binwidth = 0.2, fill = "steelblue", color = "black") +
+  labs(
+    title = "Distribution of HbA1c Values",
+    x = "HbA1c (%)",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
+
+# Step 2: Patients With vs Without A1C
+library(dplyr)
+
+# Total unique patients (from long_los_patients_index)
+total_patients <- long_los_patients_index %>%
+  distinct(person_id) %>%
+  summarise(total = n()) %>%
+  pull(total)
+
+# Patients with A1C in window
+patients_with_a1c <- a1c_long_los_patients_index %>%
+  distinct(person_id) %>%
+  summarise(with_a1c = n()) %>%
+  pull(with_a1c)
+
+# Patients without A1C
+patients_without_a1c <- total_patients - patients_with_a1c
+
+# Output table
+data.frame(
+  total_patients = total_patients,
+  with_a1c = patients_with_a1c,
+  without_a1c = patients_without_a1c
+)
+
+#step 3
+library(lubridate)
+
+# Join A1C and restrict glucose values to 24h post-admission
+glucose_with_a1c <- measurement_subset %>%
+  inner_join(
+    a1c_long_los_patients_index %>%
+      mutate(a1c_group = ifelse(a1c_median >= 6.5, "≥6.5", "<6.5")),
+    by = c("person_id")
+  ) %>%
+  inner_join(
+    long_los_patients_index %>%
+      rename(person_id = PERSON_ID, VISIT_START_DATETIME = VISIT_START_DATETIME),
+    by = "person_id"
+  ) %>%
+  filter(measurement_datetime >= VISIT_START_DATETIME &
+         measurement_datetime <= VISIT_START_DATETIME + hours(24)) %>%
+  mutate(
+    elapsed_hours = as.numeric(difftime(measurement_datetime, VISIT_START_DATETIME, units = "hours")),
+    time_bin_hr = floor(elapsed_hours / 2) * 2
+  )
+
+# Summarize per time bin
+glucose_summary <- glucose_with_a1c %>%
+  group_by(person_id, a1c_group, time_bin_hr) %>%
+  summarise(med_per_patient = median(value_as_number, na.rm = TRUE), .groups = "drop") %>%
+  group_by(a1c_group, time_bin_hr) %>%
+  summarise(
+    median_glucose = median(med_per_patient, na.rm = TRUE),
+    q1 = quantile(med_per_patient, 0.25, na.rm = TRUE),
+    q3 = quantile(med_per_patient, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Plot
+library(ggplot2)
+
+ggplot(glucose_summary, aes(x = time_bin_hr, y = median_glucose, color = a1c_group, fill = a1c_group)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = q1, ymax = q3), alpha = 0.2, color = NA) +
+  labs(
+    title = "Glucose Trajectories by A1C Group",
+    x = "Hours Since Admission",
+    y = "Glucose (mg/dL)"
+  ) +
+  scale_x_continuous(breaks = seq(0, 24, 2), limits = c(0, 24)) +
+  theme_minimal()
+
+#step 4
+hypo_counts <- glucose_with_a1c %>%
+  mutate(
+    mild_hypo = value_as_number >= 40 & value_as_number < 70,
+    severe_hypo = value_as_number < 40
+  ) %>%
+  group_by(person_id, a1c_group) %>%
+  summarise(
+    any_mild = any(mild_hypo, na.rm = TRUE),
+    any_severe = any(severe_hypo, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(a1c_group) %>%
+  summarise(
+    n_patients = n(),
+    n_mild_hypo = sum(any_mild),
+    n_severe_hypo = sum(any_severe)
+  )
+
+print(hypo_counts)
+
+#glucose check frequency for A1C<6.5 and >6.5
+library(dplyr)
+library(lubridate)
+
+# Filter to patients with A1C, join visit time
+glucose_with_a1c_counts <- measurement_subset %>%
+  inner_join(
+    a1c_long_los_patients_index %>%
+      mutate(a1c_group = ifelse(a1c_median >= 6.5, "≥6.5", "<6.5")),
+    by = c("person_id")
+  ) %>%
+  inner_join(
+    long_los_patients_index %>%
+      rename(person_id = PERSON_ID, VISIT_START_DATETIME = VISIT_START_DATETIME),
+    by = "person_id"
+  ) %>%
+  filter(
+    measurement_datetime >= VISIT_START_DATETIME,
+    measurement_datetime <= VISIT_START_DATETIME + hours(24)
+  )
+
+# Count measurements per patient
+glucose_counts_by_group <- glucose_with_a1c_counts %>%
+  group_by(person_id, a1c_group) %>%
+  summarise(n_glucose_checks_24h = n(), .groups = "drop")
+
+# Summarize by group
+glucose_summary <- glucose_counts_by_group %>%
+  group_by(a1c_group) %>%
+  summarise(
+    n_patients = n(),
+    total_glucose_checks = sum(n_glucose_checks_24h),
+    median_checks = median(n_glucose_checks_24h),
+    iqr_checks = IQR(n_glucose_checks_24h)
+  )
+
+glucose_summary
+
+library(ggplot2)
+
+# Histogram overlayed by A1C group
+ggplot(glucose_counts_by_group, aes(x = n_glucose_checks_24h, fill = a1c_group)) +
+  geom_histogram(binwidth = 1, position = "identity", alpha = 0.5, color = "black") +
+  scale_fill_manual(values = c("<6.5" = "steelblue", "≥6.5" = "darkorange")) +
+  labs(
+    title = "Number of Glucose Checks in First 24h by A1C Group",
+    x = "Number of Glucose Checks",
+    y = "Number of Patients",
+    fill = "A1C Group"
+  ) +
+  theme_minimal() +
+  xlim(0, NA)  # Optional: limits x-axis to non-negative values
+
