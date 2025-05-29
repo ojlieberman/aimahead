@@ -60,3 +60,13 @@ ORDER BY person_id, visit_start_datetime;
 "
 
 long_los_patients <- dbGetQuery(conn, query)
+
+#create table with index inpatient visit only
+#Step 1: Create long_los_patients_index
+library(dplyr)
+
+long_los_patients_index <- long_los_patients %>%
+  group_by(person_id) %>%
+  filter(visit_start_datetime == min(visit_start_datetime, na.rm = TRUE)) %>%
+  slice(1) %>%  # In case of exact tie
+  ungroup()
