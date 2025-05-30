@@ -1,0 +1,19 @@
+#run after measurement_subset table made and filtered to first 24hr
+
+library(dplyr)
+
+hypoglycemia_flags <- measurement_subset %>%
+  group_by(person_id) %>%
+  summarise(
+    has_mild_hypo = any(value_as_number < 70, na.rm = TRUE),
+    has_severe_hypo = any(value_as_number < 40, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+hypoglycemia_flags %>%
+  summarise(
+    n_patients = n(),
+    mild_hypo = sum(has_mild_hypo),
+    severe_hypo = sum(has_severe_hypo),
+    both = sum(has_mild_hypo & has_severe_hypo)
+  )
